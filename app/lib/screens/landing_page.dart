@@ -40,7 +40,7 @@ class _LandingPageState extends State<LandingPage> {
     try {
       await Supabase.instance.client.auth.signInWithOAuth(
         OAuthProvider.google,
-        redirectTo: kIsWeb ? Uri.base.origin : 'io.supabase.flutterquickstart://login-callback/',
+        redirectTo: kIsWeb ? Uri.base.toString() : 'celebritybarbers://login-callback/',
         queryParams: {
           'client_id': '442583132863-prep3v2m41ogt8r6nfhnlfc2vstb0q94.apps.googleusercontent.com',
         },
