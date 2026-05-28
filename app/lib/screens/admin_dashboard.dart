@@ -310,11 +310,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                   style: TextStyle(color: Colors.black54, fontSize: 13, fontWeight: FontWeight.w500),
                                 ),
                                 const SizedBox(height: 8),
-                                StreamBuilder<List<Map<String, dynamic>>> (
-                                  stream: Supabase.instance.client
-                                      .from('bookings')
-                                      .stream(primaryKey: ['id'])
-                                      .eq('status', 'completed'),
+StreamBuilder<List<Map<String, dynamic>>> (
+                                   stream: Supabase.instance.client
+                                       .from('bookings')
+                                       .stream(primaryKey: ['id'])
+                                       .eq('status', 'completed')
+                                       .order('created_at', ascending: true),
                                   builder: (context, completedSnap) {
                                     int liveRevenue = 0;
                                     if (completedSnap.hasData) {
@@ -652,10 +653,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
   // ================================================================
   Widget _buildAnalyticsView(NumberFormat currencyFormat) {
     return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: Supabase.instance.client
-          .from('bookings')
-          .stream(primaryKey: ['id'])
-          .eq('status', 'completed'),
+stream: Supabase.instance.client
+           .from('bookings')
+           .stream(primaryKey: ['id'])
+           .eq('status', 'completed')
+           .order('created_at', ascending: true),
       builder: (context, completedSnap) {
         final completedBookings = completedSnap.data ?? [];
         

@@ -350,7 +350,7 @@ class _BookingPageState extends State<BookingPage> {
     );
   }
 
-  Future<void> _handleBooking() async {
+Future<void> _handleBooking() async {
     if (selectedService == null || selectedDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select a service and a date.')),
@@ -369,25 +369,9 @@ class _BookingPageState extends State<BookingPage> {
       
       final selectedDateInfo = dynamicDates.firstWhere((d) => d['date'] == selectedDate);
       final fullDate = selectedDateInfo['fullDate']!;
-
-      // Fetch all pending bookings to filter by targeted date locally
-      final existingBookingsResponse = await Supabase.instance.client
-          .from('bookings')
-          .select('id, created_at')
-          .eq('status', 'pending');
-          
-      final targetDateStr = fullDate.split('T').first;
-      int clientsAhead = 0;
-      for (var booking in existingBookingsResponse) {
-        final createdAtStr = booking['created_at']?.toString() ?? '';
-        if (createdAtStr.startsWith(targetDateStr)) {
-          clientsAhead++;
-        }
-      }
       
-      final userPosition = clientsAhead + 1;
       final user = Supabase.instance.client.auth.currentUser;
-      
+
       final response = await Supabase.instance.client.from('bookings').insert({
         'client_name': user?.userMetadata?['full_name'] ?? 'Unknown Celeb',
         'service_type': selectedService,
@@ -397,8 +381,29 @@ class _BookingPageState extends State<BookingPage> {
         'user_id': user?.id,
         'client_phone': phoneNumber,
       }).select().single();
-      
+
       final String bookingId = response['id'].toString();
+      
+      // Fetch all pending bookings AFTER insert to get accurate position from server-ordered data
+      final updatedBookings = await Supabase.instance.client
+          .from('bookings')
+          .select('id, created_at')
+          .eq('status', 'pending')
+          .order('created_at', ascending: true);
+
+      final targetDateStr = fullDate.split('T').first;
+      int clientsAhead = 0;
+      
+      for (final booking in updatedBookings) {
+        final createdAtStr = booking['created_at']?.toString() ?? '';
+        if (createdAtStr.startsWith(targetDateStr)) {
+          if (booking['id'].toString() == bookingId) {
+            break;
+          }
+          clientsAhead++;
+        }
+      }
+      final userPosition = clientsAhead + 1;
 
       if (mounted) {
         _showConfirmationModal(userPosition, clientsAhead, bookingId);
