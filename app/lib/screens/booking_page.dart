@@ -14,6 +14,7 @@ class BookingPage extends StatefulWidget {
 class _BookingPageState extends State<BookingPage> {
   String? selectedService;
   String? selectedDate;
+  String? phoneNumber;
   
   String firstName = 'CELEB';
   String? avatarUrl;
@@ -209,6 +210,53 @@ class _BookingPageState extends State<BookingPage> {
 
               const SizedBox(height: 32),
 
+              // Phone Number
+              Row(
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: [
+                  const Text(
+                    'PHONE NUMBER',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.5,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const Text(
+                    ' (Optional)',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                keyboardType: TextInputType.phone,
+                onChanged: (value) {
+                  phoneNumber = value.isEmpty ? null : value;
+                },
+                decoration: InputDecoration(
+                  hintText: 'Phone Number (Optional)',
+                  hintStyle: TextStyle(color: Colors.grey[400]),
+                  border: OutlineInputBorder(
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                  focusedBorder: const OutlineInputBorder(
+                    borderSide: BorderSide(color: Colors.black, width: 1.5),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                ),
+              ),
+
+              const SizedBox(height: 32),
+
               // Date Selection
               Row(
                 mainAxisAlignment: MainAxisAlignment.start,
@@ -347,6 +395,7 @@ class _BookingPageState extends State<BookingPage> {
         'status': 'pending',
         'created_at': fullDate,
         'user_id': user?.id,
+        'client_phone': phoneNumber,
       }).select().single();
       
       final String bookingId = response['id'].toString();

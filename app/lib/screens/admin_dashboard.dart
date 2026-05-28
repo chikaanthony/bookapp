@@ -402,11 +402,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
                           final clientName = booking['client_name'] ?? 'Unknown Client';
                           final serviceType = booking['service_type'] ?? 'Standard Cut';
                           final price = int.tryParse(booking['price']?.toString() ?? '') ?? 1800;
+                          final clientPhone = booking['client_phone'] as String?;
                           
                           if (index == 0) {
-                            return _buildActiveChairTile(bookingId, clientName, serviceType, price, currencyFormat);
+                            return _buildActiveChairTile(bookingId, clientName, serviceType, price, currencyFormat, clientPhone);
                           } else {
-                            return _buildWaitingTile(bookingId, clientName, serviceType, price, currencyFormat);
+                            return _buildWaitingTile(bookingId, clientName, serviceType, price, currencyFormat, clientPhone);
                           }
                         },
                       ),
@@ -485,7 +486,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
-  Widget _buildActiveChairTile(String id, String name, String service, dynamic price, NumberFormat format) {
+  Widget _buildActiveChairTile(String id, String name, String service, dynamic price, NumberFormat format, String? phone) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -539,6 +540,19 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   style: TextStyle(fontSize: 13, color: Colors.grey[700], fontWeight: FontWeight.w500),
                 ),
                 const SizedBox(height: 2),
+                if (phone != null && phone.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4.0),
+                    child: SelectableText(
+                      '📞 $phone',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[400], // Matches the app dark mode dashboard
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 4),
                 Text(
                   format.format(price),
                   style: const TextStyle(fontSize: 13, color: Color(0xFF967300), fontWeight: FontWeight.w700),
@@ -567,7 +581,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
-  Widget _buildWaitingTile(String id, String name, String service, dynamic price, NumberFormat format) {
+  Widget _buildWaitingTile(String id, String name, String service, dynamic price, NumberFormat format, String? phone) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -611,6 +625,15 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   style: TextStyle(fontSize: 13, color: Colors.grey[700]),
                 ),
                 const SizedBox(height: 2),
+                Text(
+                  phone != null && phone.isNotEmpty ? '📞 $phone' : 'No phone provided',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: phone != null && phone.isNotEmpty ? Colors.green[700] : Colors.grey[500],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 4),
                 Text(
                   format.format(price),
                   style: const TextStyle(fontSize: 13, color: Color(0xFF967300), fontWeight: FontWeight.w700),
