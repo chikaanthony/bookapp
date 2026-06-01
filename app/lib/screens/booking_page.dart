@@ -21,6 +21,12 @@ class _BookingPageState extends State<BookingPage> {
   bool _isBooking = false;
   
   List<Map<String, String>> dynamicDates = [];
+  
+  bool _showPhoneHighlight = false;
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _phoneFieldKey = GlobalKey();
+  final FocusNode _phoneFocusNode = FocusNode();
+  final TextEditingController _phoneController = TextEditingController();
 
   final List<Map<String, String>> services = [
     {
@@ -45,6 +51,14 @@ class _BookingPageState extends State<BookingPage> {
     super.initState();
     _loadUserData();
     _generateDates();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _phoneFocusNode.dispose();
+    _phoneController.dispose();
+    super.dispose();
   }
   
   void _loadUserData() {
@@ -72,18 +86,18 @@ class _BookingPageState extends State<BookingPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFCFCFC), // Very light, almost white background
+      backgroundColor: _showPhoneHighlight ? const Color(0xFF121212) : const Color(0xFFFCFCFC),
       appBar: AppBar(
-        backgroundColor: const Color(0xFFFCFCFC),
+        backgroundColor: _showPhoneHighlight ? const Color(0xFF121212) : const Color(0xFFFCFCFC),
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.menu, color: Colors.black87),
+          icon: Icon(Icons.menu, color: _showPhoneHighlight ? Colors.white30 : Colors.black87),
           onPressed: () {},
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout, color: Colors.black54),
+            icon: Icon(Icons.logout, color: _showPhoneHighlight ? Colors.white30 : Colors.black54),
             tooltip: 'Log Out',
             onPressed: () async {
               await Supabase.instance.client.auth.signOut();
@@ -133,157 +147,218 @@ class _BookingPageState extends State<BookingPage> {
         ],
       ),
       body: SingleChildScrollView(
+        controller: _scrollController,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const SizedBox(height: 24),
-              // Greeting
-              Text(
-                'WELCOME BACK,\n$firstName',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.2,
-                  height: 1.2,
-                  fontFamily: 'Times New Roman', // Serif look
-                ),
-              ),
-              const SizedBox(height: 24),
-              
-              // Loyalty Banner
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  border: Border.all(color: Colors.black12),
-                ),
+              AnimatedOpacity(
+                opacity: _showPhoneHighlight ? 0.15 : 1.0,
+                duration: const Duration(milliseconds: 300),
                 child: Column(
                   children: [
+                    const SizedBox(height: 24),
+                    // Greeting
+                    Text(
+                      'WELCOME BACK,\n$firstName',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.2,
+                        height: 1.2,
+                        fontFamily: 'Times New Roman', // Serif look
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    
+                    // Loyalty Banner
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        border: Border.all(color: Colors.black12),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                width: 20,
+                                height: 20,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.grey[400]!, width: 2),
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Container(
+                                width: 20,
+                                height: 20,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.grey[400]!, width: 2),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            '2 CUTS AWAY FROM A FREE VIP\nLINEUP.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.5,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    
+                    // Services
+                    ...services.map((service) => _buildServiceCard(
+                          title: service['title']!,
+                          description: service['description']!,
+                          price: service['price']!,
+                        )),
+                    const SizedBox(height: 32),
+                  ],
+                ),
+              ),
+
+              // Phone Number Container
+              Container(
+                key: _phoneFieldKey,
+                padding: _showPhoneHighlight ? const EdgeInsets.all(16) : EdgeInsets.zero,
+                decoration: _showPhoneHighlight
+                    ? BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.black, width: 2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.4),
+                            blurRadius: 16,
+                            spreadRadius: 4,
+                          ),
+                        ],
+                      )
+                    : null,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisAlignment: MainAxisAlignment.start,
                       children: [
-                        Container(
-                          width: 20,
-                          height: 20,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.grey[400]!, width: 2),
+                        Text(
+                          'PHONE NUMBER',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.5,
+                            color: _showPhoneHighlight ? Colors.black87 : Colors.black87,
                           ),
                         ),
-                        const SizedBox(width: 16),
-                        Container(
-                          width: 20,
-                          height: 20,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.grey[400]!, width: 2),
+                        Text(
+                          ' (Required)',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: _showPhoneHighlight ? Colors.red[800] : Colors.grey,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      '2 CUTS AWAY FROM A FREE VIP\nLINEUP.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.5,
-                        color: Colors.black87,
+                    if (_showPhoneHighlight) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        "Please insert your phone number so that Celebrity Barbers can reach you when your turn reaches.",
+                        style: TextStyle(
+                          color: Colors.red[800],
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _phoneController,
+                      focusNode: _phoneFocusNode,
+                      keyboardType: TextInputType.phone,
+                      onChanged: (value) {
+                        phoneNumber = value.isEmpty ? null : value;
+                        final isValid = value.trim().length >= 7;
+                        if (isValid && _showPhoneHighlight) {
+                          setState(() {
+                            _showPhoneHighlight = false;
+                          });
+                        }
+                      },
+                      decoration: InputDecoration(
+                        hintText: 'Phone Number',
+                        hintStyle: TextStyle(color: Colors.grey[400]),
+                        fillColor: Colors.white,
+                        filled: true,
+                        border: OutlineInputBorder(
+                          borderSide: BorderSide(color: Colors.grey[300]!),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderSide: BorderSide(color: Colors.grey[300]!),
+                        ),
+                        focusedBorder: const OutlineInputBorder(
+                          borderSide: BorderSide(color: Colors.black, width: 1.5),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 32),
-              
-              // Services
-              ...services.map((service) => _buildServiceCard(
-                    title: service['title']!,
-                    description: service['description']!,
-                    price: service['price']!,
-                  )),
 
               const SizedBox(height: 32),
 
-              // Phone Number
-              Row(
-                mainAxisAlignment: MainAxisAlignment.start,
-                children: [
-                  const Text(
-                    'PHONE NUMBER',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.5,
-                      color: Colors.black87,
+              AnimatedOpacity(
+                opacity: _showPhoneHighlight ? 0.15 : 1.0,
+                duration: const Duration(milliseconds: 300),
+                child: Column(
+                  children: [
+                    // Date Selection
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      children: [
+                        Text(
+                          'SELECT DATE',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.5,
+                            color: _showPhoneHighlight ? Colors.black38 : Colors.black87,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  const Text(
-                    ' (Optional)',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey,
+                    const SizedBox(height: 16),
+                    
+                    SizedBox(
+                      height: 70,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: dynamicDates.length,
+                        separatorBuilder: (context, index) => const SizedBox(width: 12),
+                        itemBuilder: (context, index) {
+                          final dateInfo = dynamicDates[index];
+                          return _buildDateCard(dateInfo['day']!, dateInfo['date']!);
+                        },
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                keyboardType: TextInputType.phone,
-                onChanged: (value) {
-                  phoneNumber = value.isEmpty ? null : value;
-                },
-                decoration: InputDecoration(
-                  hintText: 'Phone Number (Optional)',
-                  hintStyle: TextStyle(color: Colors.grey[400]),
-                  border: OutlineInputBorder(
-                    borderSide: BorderSide(color: Colors.grey[300]!),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: Colors.grey[300]!),
-                  ),
-                  focusedBorder: const OutlineInputBorder(
-                    borderSide: BorderSide(color: Colors.black, width: 1.5),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                ),
-              ),
-
-              const SizedBox(height: 32),
-
-              // Date Selection
-              Row(
-                mainAxisAlignment: MainAxisAlignment.start,
-                children: [
-                  const Text(
-                    'SELECT DATE',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.5,
-                      color: Colors.black87,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              
-              SizedBox(
-                height: 70,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: dynamicDates.length,
-                  separatorBuilder: (context, index) => const SizedBox(width: 12),
-                  itemBuilder: (context, index) {
-                    final dateInfo = dynamicDates[index];
-                    return _buildDateCard(dateInfo['day']!, dateInfo['date']!);
-                  },
+                  ],
                 ),
               ),
 
@@ -355,6 +430,22 @@ class _BookingPageState extends State<BookingPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select a service.')),
       );
+      return;
+    }
+
+    final trimmedPhone = phoneNumber?.trim() ?? '';
+    if (trimmedPhone.isEmpty || trimmedPhone.length < 7) {
+      setState(() {
+        _showPhoneHighlight = true;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _phoneFocusNode.requestFocus();
+        Scrollable.ensureVisible(
+          _phoneFieldKey.currentContext!,
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.easeInOut,
+        );
+      });
       return;
     }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'dart:math';
+import 'dart:ui' as ui;
 import 'landing_page.dart';
 
 class AdminDashboard extends StatefulWidget {
@@ -16,6 +17,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
   bool _isAuthorized = true;
   List<Map<String, dynamic>> _currentBookings = [];
   int _currentTabIndex = 0;
+
+  double _chartScale = 1.0;
+  double _chartScrollOffset = 0.0;
+  double _baseScale = 1.0;
+  double _baseScrollOffset = 0.0;
 
   @override
   void initState() {
@@ -46,18 +52,18 @@ class _AdminDashboardState extends State<AdminDashboard> {
       
       final completedBookings = await Supabase.instance.client
           .from('bookings')
-          .select('price, created_at')
+          .select('price, completed_at, created_at')
           .eq('status', 'completed');
           
       int revenue = 0;
       for (var booking in completedBookings) {
-        final createdAtStr = booking['created_at']?.toString() ?? '';
-        if (createdAtStr.isNotEmpty) {
+        final completedAtStr = booking['completed_at']?.toString() ?? booking['created_at']?.toString() ?? '';
+        if (completedAtStr.isNotEmpty) {
           try {
-            final createdAtDate = DateTime.parse(createdAtStr).toLocal();
-            if (createdAtDate.year == todayYear &&
-                createdAtDate.month == todayMonth &&
-                createdAtDate.day == todayDay) {
+            final completedAtDate = DateTime.parse(completedAtStr).toLocal();
+            if (completedAtDate.year == todayYear &&
+                completedAtDate.month == todayMonth &&
+                completedAtDate.day == todayDay) {
               revenue += int.tryParse(booking['price']?.toString() ?? '') ?? 0;
             }
           } catch (_) {}
@@ -78,7 +84,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
     try {
       await Supabase.instance.client
           .from('bookings')
-          .update({'status': 'completed'})
+          .update({
+            'status': 'completed',
+            'completed_at': DateTime.now().toUtc().toIso8601String(),
+          })
           .eq('id', bookingId);
           
       _checkAccessAndFetchMetrics();
@@ -339,13 +348,13 @@ StreamBuilder<List<Map<String, dynamic>>>(
                                       final todayMonth = now.month;
                                       final todayDay = now.day;
                                       for (var b in completedSnap.data!) {
-                                        final createdAtStr = b['created_at']?.toString() ?? '';
-                                        if (createdAtStr.isNotEmpty) {
+                                        final completedAtStr = b['completed_at']?.toString() ?? b['created_at']?.toString() ?? '';
+                                        if (completedAtStr.isNotEmpty) {
                                           try {
-                                            final createdAtDate = DateTime.parse(createdAtStr).toLocal();
-                                            if (createdAtDate.year == todayYear &&
-                                                createdAtDate.month == todayMonth &&
-                                                createdAtDate.day == todayDay) {
+                                            final completedAtDate = DateTime.parse(completedAtStr).toLocal();
+                                            if (completedAtDate.year == todayYear &&
+                                                completedAtDate.month == todayMonth &&
+                                                completedAtDate.day == todayDay) {
                                               liveRevenue += int.tryParse(b['price']?.toString() ?? '') ?? 0;
                                             }
                                           } catch (_) {}
@@ -686,7 +695,7 @@ stream: Supabase.instance.client
       builder: (context, completedSnap) {
         final completedBookings = completedSnap.data ?? [];
         
-        // Calculate 7-day revenue data
+        // Calculate 7-day revenue data based on completed_at
         final now = DateTime.now();
         final List<String> dayLabels = [];
         final List<double> dailyRevenues = [];
@@ -699,8 +708,8 @@ stream: Supabase.instance.client
           
           double dayRevenue = 0;
           for (var b in completedBookings) {
-            final createdAtStr = b['created_at']?.toString() ?? '';
-            if (createdAtStr.startsWith(dayStr)) {
+            final completedAtStr = b['completed_at']?.toString() ?? b['created_at']?.toString() ?? '';
+            if (completedAtStr.startsWith(dayStr)) {
               dayRevenue += (int.tryParse(b['price']?.toString() ?? '') ?? 0).toDouble();
             }
           }
@@ -708,14 +717,14 @@ stream: Supabase.instance.client
           weekTotal += dayRevenue;
         }
         
-        // Calculate last week total for growth %
+        // Calculate last week total for growth % based on completed_at
         double lastWeekTotal = 0;
         for (int i = 13; i >= 7; i--) {
           final day = now.subtract(Duration(days: i));
           final dayStr = day.toIso8601String().split('T').first;
           for (var b in completedBookings) {
-            final createdAtStr = b['created_at']?.toString() ?? '';
-            if (createdAtStr.startsWith(dayStr)) {
+            final completedAtStr = b['completed_at']?.toString() ?? b['created_at']?.toString() ?? '';
+            if (completedAtStr.startsWith(dayStr)) {
               lastWeekTotal += (int.tryParse(b['price']?.toString() ?? '') ?? 0).toDouble();
             }
           }
@@ -731,13 +740,25 @@ stream: Supabase.instance.client
           growthText = 'No data from last week';
         }
 
-        // Get sorted recent transactions for the history list
+        // Get sorted recent transactions for the history list, chronologically descending by completed_at
         final recentTransactions = List<Map<String, dynamic>>.from(completedBookings);
         recentTransactions.sort((a, b) {
-          final aDate = a['created_at']?.toString() ?? '';
-          final bDate = b['created_at']?.toString() ?? '';
+          final aDate = a['completed_at']?.toString() ?? a['created_at']?.toString() ?? '';
+          final bDate = b['completed_at']?.toString() ?? b['created_at']?.toString() ?? '';
           return bDate.compareTo(aDate);
         });
+
+        // Extract unique days (Y-M-D) to dynamically assign alternating workday themes
+        final List<String> uniqueDates = [];
+        for (var tx in recentTransactions) {
+          final dateStr = tx['completed_at']?.toString() ?? tx['created_at']?.toString() ?? '';
+          if (dateStr.isNotEmpty) {
+            final ymd = dateStr.split('T').first;
+            if (!uniqueDates.contains(ymd)) {
+              uniqueDates.add(ymd);
+            }
+          }
+        }
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -796,38 +817,55 @@ stream: Supabase.instance.client
             const SizedBox(height: 32),
 
             // Chart Card
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.black12),
-              ),
-              child: Column(
-                children: [
-                  SizedBox(
-                    height: 180,
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final chartWidth = constraints.maxWidth - 40; // account for padding
+                
+                return GestureDetector(
+                  onScaleStart: (details) {
+                    _baseScale = _chartScale;
+                    _baseScrollOffset = _chartScrollOffset;
+                  },
+                  onScaleUpdate: (details) {
+                    setState(() {
+                      _chartScale = (_baseScale * details.horizontalScale).clamp(1.0, 5.0);
+                      final maxScroll = chartWidth * (_chartScale - 1.0);
+                      _chartScrollOffset = (_baseScrollOffset + details.focalPointDelta.dx).clamp(-maxScroll, 0.0);
+                    });
+                  },
+                  onDoubleTap: () {
+                    setState(() {
+                      _chartScale = 1.0;
+                      _chartScrollOffset = 0.0;
+                    });
+                  },
+                  child: Container(
                     width: double.infinity,
-                    child: CustomPaint(
-                      painter: _RevenueChartPainter(dailyRevenues),
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.black12),
+                    ),
+                    child: Column(
+                      children: [
+                        SizedBox(
+                          height: 200,
+                          width: double.infinity,
+                          child: CustomPaint(
+                            painter: _RevenueChartPainter(
+                              dailyRevenues,
+                              _chartScale,
+                              _chartScrollOffset,
+                              dayLabels,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: dayLabels.map((label) => Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey[500],
-                        letterSpacing: 0.5,
-                      ),
-                    )).toList(),
-                  ),
-                ],
-              ),
+                );
+              },
             ),
             const SizedBox(height: 40),
 
@@ -885,12 +923,46 @@ stream: Supabase.instance.client
                   final name = tx['client_name']?.toString() ?? 'Unknown';
                   final service = tx['service_type']?.toString() ?? 'Haircut';
                   final price = int.tryParse(tx['price']?.toString() ?? '') ?? 0;
+                  final dateStr = tx['completed_at']?.toString() ?? tx['created_at']?.toString() ?? '';
+                  
+                  String ymd = '';
+                  String formattedDateHeader = '';
+                  if (dateStr.isNotEmpty) {
+                    try {
+                      final parsedDate = DateTime.parse(dateStr).toLocal();
+                      ymd = dateStr.split('T').first;
+                      formattedDateHeader = DateFormat('EEEE, MMMM d').format(parsedDate);
+                    } catch (_) {}
+                  }
+                  
+                  // Check if this card starts a new date group
+                  bool isNewDayGroup = false;
+                  if (index == 0) {
+                    isNewDayGroup = true;
+                  } else {
+                    final prevTx = recentTransactions[index - 1];
+                    final prevDateStr = prevTx['completed_at']?.toString() ?? prevTx['created_at']?.toString() ?? '';
+                    if (prevDateStr.isNotEmpty) {
+                      final prevYmd = prevDateStr.split('T').first;
+                      if (prevYmd != ymd) {
+                        isNewDayGroup = true;
+                      }
+                    }
+                  }
 
-                  return Container(
+                  final dateIndex = uniqueDates.indexOf(ymd);
+                  final isEvenDay = dateIndex % 2 == 0;
+                  
+                  final cardBgColor = isEvenDay ? const Color(0xFFF4F9F4) : const Color(0xFFFFFBEA);
+                  final accentColor = isEvenDay ? const Color(0xFF4CAF50) : const Color(0xFFFFB300);
+                  final dotColor = isEvenDay ? const Color(0xFF2E7D32) : const Color(0xFFE65100);
+
+                  final cardWidget = Container(
                     padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: cardBgColor,
                       border: Border(
+                        left: BorderSide(color: accentColor, width: 4),
                         bottom: BorderSide(color: Colors.grey[200]!),
                       ),
                     ),
@@ -899,8 +971,8 @@ stream: Supabase.instance.client
                         Container(
                           width: 10,
                           height: 10,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF967300),
+                          decoration: BoxDecoration(
+                            color: dotColor,
                             shape: BoxShape.circle,
                           ),
                         ),
@@ -914,6 +986,7 @@ stream: Supabase.instance.client
                                 style: const TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w600,
+                                  color: Colors.black87,
                                 ),
                               ),
                               const SizedBox(height: 2),
@@ -921,7 +994,7 @@ stream: Supabase.instance.client
                                 service,
                                 style: TextStyle(
                                   fontSize: 13,
-                                  color: Colors.grey[600],
+                                  color: Colors.black54,
                                 ),
                               ),
                             ],
@@ -938,6 +1011,29 @@ stream: Supabase.instance.client
                       ],
                     ),
                   );
+
+                  if (isNewDayGroup && formattedDateHeader.isNotEmpty) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(top: 24.0, bottom: 8.0, left: 4.0),
+                          child: Text(
+                            formattedDateHeader.toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.0,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                        ),
+                        cardWidget,
+                      ],
+                    );
+                  }
+                  
+                  return cardWidget;
                 },
               ),
             const SizedBox(height: 100),
@@ -953,7 +1049,11 @@ stream: Supabase.instance.client
 // ================================================================
 class _RevenueChartPainter extends CustomPainter {
   final List<double> data;
-  _RevenueChartPainter(this.data);
+  final double scale;
+  final double scrollOffset;
+  final List<String> dayLabels;
+
+  _RevenueChartPainter(this.data, this.scale, this.scrollOffset, this.dayLabels);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -977,21 +1077,24 @@ class _RevenueChartPainter extends CustomPainter {
     final path = Path();
     final points = <Offset>[];
 
+    // Clip vector operations to the layout bounds so they don't draw outside when zoomed
+    canvas.clipRect(Rect.fromLTWH(0, 0, size.width, size.height));
+
+    // Reserve 30px at the bottom of the canvas height for day labels
+    final chartHeight = size.height - 30;
+
     for (int i = 0; i < data.length; i++) {
-      final x = (i / (data.length - 1)) * size.width;
+      final x = ((i / (data.length - 1)) * size.width * scale) + scrollOffset;
       final normalizedY = range == 0 ? 0.5 : (data[i] - minVal) / range;
-      final y = size.height - (normalizedY * (size.height - 20)) - 10;
+      final y = chartHeight - (normalizedY * (chartHeight - 20)) - 10;
       points.add(Offset(x, y));
     }
 
     if (points.isNotEmpty) {
       path.moveTo(points[0].dx, points[0].dy);
       for (int i = 1; i < points.length; i++) {
-        // Smooth cubic bezier for a premium curve feel
-        final prev = points[i - 1];
-        final curr = points[i];
-        final cpx = (prev.dx + curr.dx) / 2;
-        path.cubicTo(cpx, prev.dy, cpx, curr.dy, curr.dx, curr.dy);
+        // Crisp straight connection lines
+        path.lineTo(points[i].dx, points[i].dy);
       }
       canvas.drawPath(path, paint);
     }
@@ -1000,8 +1103,40 @@ class _RevenueChartPainter extends CustomPainter {
     for (final point in points) {
       canvas.drawCircle(point, 4, dotPaint);
     }
+
+    // Render day labels aligned directly beneath each point
+    final textPainter = TextPainter(
+      textDirection: ui.TextDirection.ltr,
+    );
+    
+    for (int i = 0; i < data.length; i++) {
+      if (i < dayLabels.length) {
+        final x = ((i / (data.length - 1)) * size.width * scale) + scrollOffset;
+        
+        final textSpan = TextSpan(
+          text: dayLabels[i],
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[500],
+            letterSpacing: 0.5,
+          ),
+        );
+        textPainter.text = textSpan;
+        textPainter.layout();
+        textPainter.paint(
+          canvas,
+          Offset(x - textPainter.width / 2, size.height - 15),
+        );
+      }
+    }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+  bool shouldRepaint(covariant _RevenueChartPainter oldDelegate) {
+    return oldDelegate.scale != scale ||
+        oldDelegate.scrollOffset != scrollOffset ||
+        oldDelegate.data != data ||
+        oldDelegate.dayLabels != dayLabels;
+  }
 }
