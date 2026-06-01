@@ -31,7 +31,10 @@ class _QueueViewState extends State<QueueView> {
         .stream(primaryKey: ['id'])
         .eq('id', widget.bookingId) // Target this user's specific booking
         .listen((data) {
-          if (data.isNotEmpty) {
+          if (data.isEmpty) {
+            // Booking was deleted (archived and removed from queue)
+            _handleStatusRedirection('completed');
+          } else if (data.isNotEmpty) {
             final currentStatus = data.first['status'];
             if (currentStatus == 'completed' || currentStatus == 'cancelled') {
               _handleStatusRedirection(currentStatus);

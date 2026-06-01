@@ -152,7 +152,7 @@ class _BookingPageState extends State<BookingPage> {
                 ),
               ),
               const SizedBox(height: 24),
-
+              
               // Loyalty Banner
               Container(
                 width: double.infinity,
@@ -200,7 +200,7 @@ class _BookingPageState extends State<BookingPage> {
                 ),
               ),
               const SizedBox(height: 32),
-
+              
               // Services
               ...services.map((service) => _buildServiceCard(
                     title: service['title']!,
@@ -350,10 +350,10 @@ class _BookingPageState extends State<BookingPage> {
     );
   }
 
-Future<void> _handleBooking() async {
-    if (selectedService == null || selectedDate == null) {
+  Future<void> _handleBooking() async {
+    if (selectedService == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a service and a date.')),
+        const SnackBar(content: Text('Please select a service.')),
       );
       return;
     }
@@ -366,10 +366,7 @@ Future<void> _handleBooking() async {
       final selectedServiceInfo = services.firstWhere((s) => s['title'] == selectedService);
       final rawPrice = selectedServiceInfo['price']!;
       final cleanPriceValue = int.parse(rawPrice.replaceAll(RegExp(r'[^0-9]'), ''));
-      
-      final selectedDateInfo = dynamicDates.firstWhere((d) => d['date'] == selectedDate);
-      final fullDate = selectedDateInfo['fullDate']!;
-      
+
       final user = Supabase.instance.client.auth.currentUser;
 
       final response = await Supabase.instance.client.from('bookings').insert({
@@ -377,31 +374,30 @@ Future<void> _handleBooking() async {
         'service_type': selectedService,
         'price': cleanPriceValue,
         'status': 'pending',
-        'created_at': fullDate,
+        'created_at': DateTime.now().toIso8601String(),
         'user_id': user?.id,
         'client_phone': phoneNumber,
       }).select().single();
 
       final String bookingId = response['id'].toString();
-      
-      // Fetch all pending bookings AFTER insert to get accurate position from server-ordered data
-      final updatedBookings = await Supabase.instance.client
-          .from('bookings')
-          .select('id, created_at')
-          .eq('status', 'pending')
-          .order('created_at', ascending: true);
 
-      final targetDateStr = fullDate.split('T').first;
+      // Fetch all pending bookings
+      final allPendingBookings = await Supabase.instance.client
+          .from('bookings')
+          .select()
+          .eq('status', 'pending');
+
+      // Sort the final list strictly in ASCENDING order using the 'created_at' string
+      allPendingBookings.sort((a, b) => (a['created_at'] ?? '').compareTo(b['created_at'] ?? ''));
+
+      // Calculate global position across ALL pending bookings (matching admin dashboard logic)
       int clientsAhead = 0;
-      
-      for (final booking in updatedBookings) {
-        final createdAtStr = booking['created_at']?.toString() ?? '';
-        if (createdAtStr.startsWith(targetDateStr)) {
-          if (booking['id'].toString() == bookingId) {
-            break;
-          }
-          clientsAhead++;
+
+      for (final booking in allPendingBookings) {
+        if (booking['id'].toString() == bookingId) {
+          break;
         }
+        clientsAhead++;
       }
       final userPosition = clientsAhead + 1;
 
@@ -449,15 +445,15 @@ Future<void> _handleBooking() async {
                   child: const Icon(Icons.check, color: Colors.white, size: 32),
                 ),
                 const SizedBox(height: 24),
-                  Text(
-                    'POSITION #$userPosition',
-                    style: TextStyle(
-                      color: Color(0xFFC7A246), // Gold color from image
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 2.0,
-                      fontSize: 10,
-                    ),
+                Text(
+                  'POSITION #$userPosition',
+                  style: const TextStyle(
+                    color: Color(0xFFC7A246), // Gold color from image
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 2.0,
+                    fontSize: 10,
                   ),
+                ),
                 const SizedBox(height: 8),
                 Text(
                   clientsAhead == 0
@@ -465,7 +461,7 @@ Future<void> _handleBooking() async {
                       : clientsAhead == 1
                           ? '1 client ahead of you.'
                           : '$clientsAhead clients ahead of you.',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
                     color: Colors.black87,

@@ -39,7 +39,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
     }
 
     try {
-      final todayStr = DateTime.now().toIso8601String().split('T').first;
+      final now = DateTime.now();
+      final todayYear = now.year;
+      final todayMonth = now.month;
+      final todayDay = now.day;
       
       final completedBookings = await Supabase.instance.client
           .from('bookings')
@@ -49,8 +52,15 @@ class _AdminDashboardState extends State<AdminDashboard> {
       int revenue = 0;
       for (var booking in completedBookings) {
         final createdAtStr = booking['created_at']?.toString() ?? '';
-        if (createdAtStr.startsWith(todayStr)) {
-          revenue += int.tryParse(booking['price']?.toString() ?? '') ?? 0;
+        if (createdAtStr.isNotEmpty) {
+          try {
+            final createdAtDate = DateTime.parse(createdAtStr).toLocal();
+            if (createdAtDate.year == todayYear &&
+                createdAtDate.month == todayMonth &&
+                createdAtDate.day == todayDay) {
+              revenue += int.tryParse(booking['price']?.toString() ?? '') ?? 0;
+            }
+          } catch (_) {}
         }
       }
       
@@ -143,11 +153,17 @@ class _AdminDashboardState extends State<AdminDashboard> {
       stream: Supabase.instance.client
           .from('bookings')
           .stream(primaryKey: ['id'])
-          .eq('status', 'pending')
-          .order('created_at', ascending: true),
+          .eq('status', 'pending'),
       builder: (context, snapshot) {
-        final bookings = snapshot.data ?? [];
-        
+        var fetchedBookings = snapshot.data ?? [];
+        var pendingBookings = List<Map<String, dynamic>>.from(fetchedBookings);
+
+        // Sort the final list strictly in ASCENDING order using the 'created_at' string
+        pendingBookings.sort((a, b) => (a['created_at'] ?? '').compareTo(b['created_at'] ?? ''));
+
+        var bookings = pendingBookings;
+        final todaysBookings = pendingBookings;
+
         // Cache the live bookings for the Call Next action button
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted && _currentBookings.length != bookings.length) {
@@ -310,20 +326,29 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                   style: TextStyle(color: Colors.black54, fontSize: 13, fontWeight: FontWeight.w500),
                                 ),
                                 const SizedBox(height: 8),
-StreamBuilder<List<Map<String, dynamic>>> (
+StreamBuilder<List<Map<String, dynamic>>>(
                                    stream: Supabase.instance.client
                                        .from('bookings')
                                        .stream(primaryKey: ['id'])
-                                       .eq('status', 'completed')
-                                       .order('created_at', ascending: true),
+                                       .eq('status', 'completed'),
                                   builder: (context, completedSnap) {
                                     int liveRevenue = 0;
                                     if (completedSnap.hasData) {
-                                      final todayStr = DateTime.now().toIso8601String().split('T').first;
+                                      final now = DateTime.now();
+                                      final todayYear = now.year;
+                                      final todayMonth = now.month;
+                                      final todayDay = now.day;
                                       for (var b in completedSnap.data!) {
                                         final createdAtStr = b['created_at']?.toString() ?? '';
-                                        if (createdAtStr.startsWith(todayStr)) {
-                                          liveRevenue += int.tryParse(b['price']?.toString() ?? '') ?? 0;
+                                        if (createdAtStr.isNotEmpty) {
+                                          try {
+                                            final createdAtDate = DateTime.parse(createdAtStr).toLocal();
+                                            if (createdAtDate.year == todayYear &&
+                                                createdAtDate.month == todayMonth &&
+                                                createdAtDate.day == todayDay) {
+                                              liveRevenue += int.tryParse(b['price']?.toString() ?? '') ?? 0;
+                                            }
+                                          } catch (_) {}
                                         }
                                       }
                                     }

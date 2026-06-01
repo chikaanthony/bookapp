@@ -122,27 +122,32 @@ class _LiveQueuePageState extends State<LiveQueuePage> {
         stream: Supabase.instance.client
             .from('bookings')
             .stream(primaryKey: ['id'])
-            .eq('status', 'pending')
-            .order('created_at', ascending: true),
+            .eq('status', 'pending'),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+          var fetchedBookings = snapshot.data ?? [];
+          var pendingBookings = List<Map<String, dynamic>>.from(fetchedBookings);
+
+          // Sort the final list strictly in ASCENDING order using the 'created_at' string
+          pendingBookings.sort((a, b) => (a['created_at'] ?? '').compareTo(b['created_at'] ?? ''));
+
+          var bookings = pendingBookings;
+
+           if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
             return const Center(child: CircularProgressIndicator(color: Colors.black));
           }
           if (snapshot.hasError) {
             return Center(child: Text('Error loading live queue: ${snapshot.error}'));
           }
 
-          final List<Map<String, dynamic>> bookings = snapshot.data ?? [];
-          
           int activeIndex = bookings.indexWhere((b) => b['client_name'] == _activeClientName);
           final bool hasActiveBooking = activeIndex != -1;
-          
-          final List<Map<String, dynamic>> aheadList = hasActiveBooking 
-              ? bookings.sublist(0, activeIndex) 
+
+          final List<Map<String, dynamic>> aheadList = hasActiveBooking
+              ? bookings.sublist(0, activeIndex)
               : bookings;
-              
-          final List<Map<String, dynamic>> behindList = hasActiveBooking 
-              ? bookings.sublist(activeIndex + 1) 
+
+          final List<Map<String, dynamic>> behindList = hasActiveBooking
+              ? bookings.sublist(activeIndex + 1)
               : [];
           
           // Guarantee sticky position recalculation when layout finishes
