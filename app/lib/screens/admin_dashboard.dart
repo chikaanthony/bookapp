@@ -353,9 +353,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                 const SizedBox(height: 8),
 StreamBuilder<List<Map<String, dynamic>>>(
                                    stream: Supabase.instance.client
-                                       .from('bookings')
-                                       .stream(primaryKey: ['id'])
-                                       .eq('status', 'completed'),
+                                       .from('booking_history')
+                                       .stream(primaryKey: ['id']),
                                   builder: (context, completedSnap) {
                                     int liveRevenue = 0;
                                     if (completedSnap.hasData) {
@@ -706,7 +705,7 @@ StreamBuilder<List<Map<String, dynamic>>>(
       stream: Supabase.instance.client
            .from('booking_history')
            .stream(primaryKey: ['id'])
-           .order('created_at', ascending: true),
+           .order('completed_at', ascending: true),
       builder: (context, completedSnap) {
         final completedBookings = completedSnap.data ?? [];
         
