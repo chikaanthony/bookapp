@@ -51,13 +51,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
       final todayDay = now.day;
       
       final completedBookings = await Supabase.instance.client
-          .from('bookings')
-          .select('price, completed_at, created_at')
-          .eq('status', 'completed');
+          .from('booking_history')
+          .select();
           
       int revenue = 0;
       for (var booking in completedBookings) {
-        final completedAtStr = booking['completed_at']?.toString() ?? booking['created_at']?.toString() ?? '';
+        final completedAtStr = booking['created_at']?.toString() ?? booking['completed_at']?.toString() ?? '';
         if (completedAtStr.isNotEmpty) {
           try {
             final completedAtDate = DateTime.parse(completedAtStr).toLocal();
@@ -82,12 +81,28 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
   void _finishCut(String bookingId) async {
     try {
+      // 1. Fetch current booking details from bookings
+      final booking = await Supabase.instance.client
+          .from('bookings')
+          .select()
+          .eq('id', bookingId)
+          .single();
+
+      // 2. Insert copy into booking_history (let it auto-generate its timestamp)
+      await Supabase.instance.client
+          .from('booking_history')
+          .insert({
+            'client_name': booking['client_name'],
+            'service_type': booking['service_type'],
+            'price': booking['price'],
+            'user_id': booking['user_id'],
+            'client_phone': booking['client_phone'],
+          });
+
+      // 3. Delete the original row from bookings
       await Supabase.instance.client
           .from('bookings')
-          .update({
-            'status': 'completed',
-            'completed_at': DateTime.now().toUtc().toIso8601String(),
-          })
+          .delete()
           .eq('id', bookingId);
           
       _checkAccessAndFetchMetrics();
@@ -98,9 +113,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
   
   void _markNoShow(String bookingId) async {
     try {
+      // Permanently delete the booking from bookings
       await Supabase.instance.client
           .from('bookings')
-          .update({'status': 'cancelled'})
+          .delete()
           .eq('id', bookingId);
     } catch (e) {
       debugPrint('Error cancelling cut: $e');
@@ -687,15 +703,14 @@ StreamBuilder<List<Map<String, dynamic>>>(
   // ================================================================
   Widget _buildAnalyticsView(NumberFormat currencyFormat) {
     return StreamBuilder<List<Map<String, dynamic>>>(
-stream: Supabase.instance.client
-           .from('bookings')
+      stream: Supabase.instance.client
+           .from('booking_history')
            .stream(primaryKey: ['id'])
-           .eq('status', 'completed')
            .order('created_at', ascending: true),
       builder: (context, completedSnap) {
         final completedBookings = completedSnap.data ?? [];
         
-        // Calculate 7-day revenue data based on completed_at
+        // Calculate 7-day revenue data based on completion timestamp
         final now = DateTime.now();
         final List<String> dayLabels = [];
         final List<double> dailyRevenues = [];
@@ -708,7 +723,7 @@ stream: Supabase.instance.client
           
           double dayRevenue = 0;
           for (var b in completedBookings) {
-            final completedAtStr = b['completed_at']?.toString() ?? b['created_at']?.toString() ?? '';
+            final completedAtStr = b['created_at']?.toString() ?? b['completed_at']?.toString() ?? '';
             if (completedAtStr.startsWith(dayStr)) {
               dayRevenue += (int.tryParse(b['price']?.toString() ?? '') ?? 0).toDouble();
             }
@@ -717,13 +732,13 @@ stream: Supabase.instance.client
           weekTotal += dayRevenue;
         }
         
-        // Calculate last week total for growth % based on completed_at
+        // Calculate last week total for growth % based on completion timestamp
         double lastWeekTotal = 0;
         for (int i = 13; i >= 7; i--) {
           final day = now.subtract(Duration(days: i));
           final dayStr = day.toIso8601String().split('T').first;
           for (var b in completedBookings) {
-            final completedAtStr = b['completed_at']?.toString() ?? b['created_at']?.toString() ?? '';
+            final completedAtStr = b['created_at']?.toString() ?? b['completed_at']?.toString() ?? '';
             if (completedAtStr.startsWith(dayStr)) {
               lastWeekTotal += (int.tryParse(b['price']?.toString() ?? '') ?? 0).toDouble();
             }
@@ -740,11 +755,11 @@ stream: Supabase.instance.client
           growthText = 'No data from last week';
         }
 
-        // Get sorted recent transactions for the history list, chronologically descending by completed_at
+        // Get sorted recent transactions for the history list, chronologically descending
         final recentTransactions = List<Map<String, dynamic>>.from(completedBookings);
         recentTransactions.sort((a, b) {
-          final aDate = a['completed_at']?.toString() ?? a['created_at']?.toString() ?? '';
-          final bDate = b['completed_at']?.toString() ?? b['created_at']?.toString() ?? '';
+          final aDate = a['created_at']?.toString() ?? a['completed_at']?.toString() ?? '';
+          final bDate = b['created_at']?.toString() ?? b['completed_at']?.toString() ?? '';
           return bDate.compareTo(aDate);
         });
 
@@ -923,7 +938,7 @@ stream: Supabase.instance.client
                   final name = tx['client_name']?.toString() ?? 'Unknown';
                   final service = tx['service_type']?.toString() ?? 'Haircut';
                   final price = int.tryParse(tx['price']?.toString() ?? '') ?? 0;
-                  final dateStr = tx['completed_at']?.toString() ?? tx['created_at']?.toString() ?? '';
+                  final dateStr = tx['created_at']?.toString() ?? tx['completed_at']?.toString() ?? '';
                   
                   String ymd = '';
                   String formattedDateHeader = '';
@@ -941,7 +956,7 @@ stream: Supabase.instance.client
                     isNewDayGroup = true;
                   } else {
                     final prevTx = recentTransactions[index - 1];
-                    final prevDateStr = prevTx['completed_at']?.toString() ?? prevTx['created_at']?.toString() ?? '';
+                    final prevDateStr = prevTx['created_at']?.toString() ?? prevTx['completed_at']?.toString() ?? '';
                     if (prevDateStr.isNotEmpty) {
                       final prevYmd = prevDateStr.split('T').first;
                       if (prevYmd != ymd) {
