@@ -92,11 +92,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
       await Supabase.instance.client
           .from('booking_history')
           .insert({
-            'client_name': booking['client_name'],
-            'service_type': booking['service_type'],
+            'user_name': booking['client_name'],
+            'service': booking['service_type'],
             'price': booking['price'],
             'user_id': booking['user_id'],
-            'client_phone': booking['client_phone'],
+            'status': 'completed',
           });
 
       // 3. Delete the original row from bookings
@@ -935,8 +935,8 @@ StreamBuilder<List<Map<String, dynamic>>>(
                 separatorBuilder: (context, index) => const SizedBox(height: 0),
                 itemBuilder: (context, index) {
                   final tx = recentTransactions[index];
-                  final name = tx['client_name']?.toString() ?? 'Unknown';
-                  final service = tx['service_type']?.toString() ?? 'Haircut';
+                  final name = tx['user_name']?.toString() ?? tx['client_name']?.toString() ?? 'Unknown';
+                  final service = tx['service']?.toString() ?? tx['service_type']?.toString() ?? 'Haircut';
                   final price = int.tryParse(tx['price']?.toString() ?? '') ?? 0;
                   final dateStr = tx['created_at']?.toString() ?? tx['completed_at']?.toString() ?? '';
                   
